@@ -1,0 +1,113 @@
+#!/usr/bin/python3
+
+import argparse
+import json
+import os
+import time
+
+from fractions import Fraction
+from picamera import PiCamera
+
+
+def format_time():
+    current_time = time.localtime()
+    return time.strftime('%d %b %Y %H:%M:%S', current_time)
+
+
+def take_picture(camera, config, dest_folder, logger, preview=False, n_frames=1):
+    # set camera parameters
+    for param in config.keys():
+        setattr(camera, param, config[param])
+    logger.write("Parameters loaded")
+
+    # unique naming (folders)
+    date = time.strftime("%Y_%m_%d")
+    dest_folder = os.path.join(dest_folder, date)
+    if not os.path.isdir(dest_folder):
+        os.makedirs(dest_folder)
+
+    # take picture
+    logger.write("Starting capture...")
+    if preview:
+        camera.start_preview()
+    
+    first = True
+    for i in range(n_frames):
+        # sleep
+        time.sleep(5 if first else 60 // n_frames)
+        first = False
+        
+        # unique naming (filenames)
+        current_time = time.strftime("%Hh%Mm%Ss")
+        filename = os.path.join(dest_folder, current_time + '.jpg')
+        
+        start = time.time()
+        camera.capture(filename, format='jpeg', quality=75, use_video_port=True)
+        end = time.time()
+
+        logger.write("Saved image to {} in {:.2f}s".format(filename, end - start))
+
+
+def main(config_file, init_file):
+    print("starting")
+    try:
+        camera = None
+        logger = FileLogger('/home/pi/Documents/camera/log.txt')
+        # load init
+        with open(init_file, 'r') as fid:
+            init = json.load(fid)
+
+        # load config
+        with open(config_file, 'r') as fid:
+            config = json.load(fid)
+
+        # init camera
+        camera = PiCamera(sensor_mode=0,
+                          resolution=init.get('resolution', [1024, 768]),
+                          framerate=init.get('framerate', 0.1))
+        camera.exposure_mode = 'off'
+        logger.write("Camera initialized")
+
+        # destination folder
+        dest_folder = '/home/pi/Documents/camera/images'
+        if not os.path.isdir(dest_folder):
+            os.makedirs(dest_folder)
+
+        # take picture
+        take_picture(camera, config, dest_folder, logger, preview=init.get('preview', False), 
+                     n_frames=init.get('frames_per_minute', 1))
+
+        camera.framerate = 1
+        camera.close()
+    except KeyboardInterrupt:
+        if camera is not None:
+            camera.framerate = 1
+            camera.close()
+            logger.write("Closed (interrupted)")
+    except Exception as e:
+        if camera is not None:
+            camera.framerate = 1
+            camera.close()
+            logger.write("Closed (error)")
+            raise e
+            
+            
+class FileLogger:
+    
+    def __init__(self, filename):
+        self.file = filename
+        with open(filename, 'a') as fid:
+            fid.write("\n{} - New capture started\n".format(format_time()))
+            
+    def write(self, message):
+        with open(self.file, 'a') as fid:
+            fid.write("{} - {}\n".format(format_time(), message))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=("Takes a picture with the raspberry pi noir camera"))
+    parser.add_argument('-c', '--conf', type=str, default='/home/pi/Documents/camera/conf.json', help="Configuration file for taking pictures")
+    parser.add_argument('-i', '--init', type=str, default='/home/pi/Documents/camera/init.json', help="Initialization file for camera (faster)")
+    args = parser.parse_args()
+
+    main(args.conf, args.init)
