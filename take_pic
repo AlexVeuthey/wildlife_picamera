@@ -50,9 +50,9 @@ def take_picture(camera, config, dest_folder, logger, preview=False, n_frames=1)
 
 def main(config_file, init_file):
     print("starting")
+    camera = None
+    logger = FileLogger('log.txt')
     try:
-        camera = None
-        logger = FileLogger('/home/pi/Documents/camera/log.txt')
         # load init
         with open(init_file, 'r') as fid:
             init = json.load(fid)
@@ -69,7 +69,7 @@ def main(config_file, init_file):
         logger.write("Camera initialized")
 
         # destination folder
-        dest_folder = '/home/pi/Documents/camera/images'
+        dest_folder = 'images'
         if not os.path.isdir(dest_folder):
             os.makedirs(dest_folder)
 
@@ -105,9 +105,9 @@ class FileLogger:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=("Takes a picture with the raspberry pi noir camera"))
-    parser.add_argument('-c', '--conf', type=str, default='/home/pi/Documents/camera/conf.json', help="Configuration file for taking pictures")
-    parser.add_argument('-i', '--init', type=str, default='/home/pi/Documents/camera/init.json', help="Initialization file for camera (faster)")
+    parser = argparse.ArgumentParser(description="Takes a picture with the raspberry pi noir camera")
+    parser.add_argument('-c', '--conf', type=str, default='conf.json', help="Configuration file for taking pictures")
+    parser.add_argument('-i', '--init', type=str, default='init.json', help="Initialization file for camera (faster)")
     args = parser.parse_args()
 
     main(args.conf, args.init)
